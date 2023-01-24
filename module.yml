@@ -94,6 +94,11 @@ Parameters:
     Type: String
     AllowedValues: ['true', 'false']
     Default: 'false'
+  MinimumTlsVersion:
+    Description: 'Specifies the minimum version of TLS to be used when establishing communication to Amazon S3. Any attempt of communication with a TLS version below the specified one will be denied.'
+    Type: Number
+    Default: 0
+    MinValue: 0
 Conditions:
   HasKmsKeyModule: !Not [!Equals [!Ref KmsKeyModule, '']]
   HasPrivateAccess: !Equals [!Ref Access, Private]
@@ -116,6 +121,7 @@ Conditions:
   HasPartitionPublic: !Equals [!Ref 'AWS::Partition', 'aws']
   HasPartitionChina: !Equals [!Ref 'AWS::Partition', 'aws-cn']
   HasPartitionUsGov: !Equals [!Ref 'AWS::Partition', 'aws-us-gov']
+  EnforceMinimumTlsVersion: !Not [!Equals [!Ref MinimumTlsVersion, 0]]
 Resources:
   PolicyLambdaEventTarget1:
     Type: 'AWS::IAM::Policy'
@@ -266,6 +272,11 @@ Resources:
             StringNotEquals:
               's3:x-amz-server-side-encryption': ''
               's3:x-amz-server-side-encryption-aws-kms-key-id': {'Fn::ImportValue': !Sub '${KmsKeyModule}-Arn'}
+            Fn::If:
+            - EnforceMinimumTlsVersion
+            - NumericLessThan:
+                's3:TlsVersion': !Ref MinimumTlsVersion
+            - !Ref 'AWS::NoValue'
   BucketPolicyPublic:
     Condition: HasPublicReadAccess
     Type: 'AWS::S3::BucketPolicy'
@@ -278,6 +289,12 @@ Resources:
           Action: 's3:GetObject'
           Effect: Allow
           Resource: !Sub '${Bucket.Arn}/*'
+          Condition:
+            Fn::If:
+            - EnforceMinimumTlsVersion
+            - NumericLessThan:
+                's3:TlsVersion': !Ref MinimumTlsVersion
+            - !Ref 'AWS::NoValue'
   BucketPolicyCloudFrontRead:
     Condition: HasCloudFrontReadAccess
     Type: 'AWS::S3::BucketPolicy'
@@ -291,6 +308,12 @@ Resources:
           Action: 's3:GetObject'
           Effect: Allow
           Resource: !Sub '${Bucket.Arn}/*'
+          Condition:
+            Fn::If:
+            - EnforceMinimumTlsVersion
+            - NumericLessThan:
+                's3:TlsVersion': !Ref MinimumTlsVersion
+            - !Ref 'AWS::NoValue'
   BucketPolicyElbAccessLogWrite:
     Condition: HasElbAccessLogWriteAccess
     Type: 'AWS::S3::BucketPolicy'
@@ -325,6 +348,12 @@ Resources:
           Action: 's3:PutObject'
           Effect: Allow
           Resource: !Sub '${Bucket.Arn}/*AWSLogs/${AWS::AccountId}/*'
+          Condition:
+            Fn::If:
+            - EnforceMinimumTlsVersion
+            - NumericLessThan:
+                's3:TlsVersion': !Ref MinimumTlsVersion
+            - !Ref 'AWS::NoValue'
         - Principal:
             Service: 'delivery.logs.amazonaws.com' # https://docs.aws.amazon.com/elasticloadbalancing/latest/network/load-balancer-access-logs.html
           Action: 's3:PutObject'
@@ -333,11 +362,22 @@ Resources:
           Condition:
             StringEquals:
               's3:x-amz-acl': 'bucket-owner-full-control'
+            Fn::If:
+            - EnforceMinimumTlsVersion
+            - NumericLessThan:
+                's3:TlsVersion': !Ref MinimumTlsVersion
+            - !Ref 'AWS::NoValue'
         - Principal:
             Service: 'delivery.logs.amazonaws.com' # https://docs.aws.amazon.com/elasticloadbalancing/latest/network/load-balancer-access-logs.html
           Action: 's3:GetBucketAcl'
           Effect: Allow
           Resource: !GetAtt 'Bucket.Arn'
+          Condition:
+            Fn::If:
+            - EnforceMinimumTlsVersion
+            - NumericLessThan:
+                's3:TlsVersion': !Ref MinimumTlsVersion
+            - !Ref 'AWS::NoValue'
   BucketPolicyConfigWrite:
     Condition: HasConfigWriteAccess
     Type: 'AWS::S3::BucketPolicy'
@@ -351,6 +391,12 @@ Resources:
             Service: 'config.amazonaws.com'
           Action: 's3:GetBucketAcl'
           Resource: !GetAtt 'Bucket.Arn'
+          Condition:
+            Fn::If:
+            - EnforceMinimumTlsVersion
+            - NumericLessThan:
+                's3:TlsVersion': !Ref MinimumTlsVersion
+            - !Ref 'AWS::NoValue'
         - Effect: Allow
           Principal:
             Service: 'config.amazonaws.com'
@@ -359,6 +405,11 @@ Resources:
           Condition:
             StringEquals:
               's3:x-amz-acl': 'bucket-owner-full-control'
+            Fn::If:
+            - EnforceMinimumTlsVersion
+            - NumericLessThan:
+                's3:TlsVersion': !Ref MinimumTlsVersion
+            - !Ref 'AWS::NoValue'
   BucketPolicyCloudTrailWrite:
     Condition: HasCloudTrailWriteAccess
     Type: 'AWS::S3::BucketPolicy'
@@ -372,6 +423,12 @@ Resources:
             Service: 'cloudtrail.amazonaws.com'
           Action: 's3:GetBucketAcl'
           Resource: !GetAtt 'Bucket.Arn'
+          Condition:
+            Fn::If:
+            - EnforceMinimumTlsVersion
+            - NumericLessThan:
+                's3:TlsVersion': !Ref MinimumTlsVersion
+            - !Ref 'AWS::NoValue'
         - Effect: Allow
           Principal:
             Service: 'cloudtrail.amazonaws.com'
@@ -380,6 +437,11 @@ Resources:
           Condition:
             StringEquals:
               's3:x-amz-acl': 'bucket-owner-full-control'
+            Fn::If:
+            - EnforceMinimumTlsVersion
+            - NumericLessThan:
+                's3:TlsVersion': !Ref MinimumTlsVersion
+            - !Ref 'AWS::NoValue'
   BucketPolicyFlowLogWrite:
     Condition: HasFlowLogWriteAccess
     Type: 'AWS::S3::BucketPolicy'
@@ -397,12 +459,23 @@ Resources:
           Condition:
             StringEquals:
               's3:x-amz-acl': 'bucket-owner-full-control'
+            Fn::If:
+            - EnforceMinimumTlsVersion
+            - NumericLessThan:
+                's3:TlsVersion': !Ref MinimumTlsVersion
+            - !Ref 'AWS::NoValue'
         - Sid: AWSLogDeliveryAclCheck
           Effect: Allow
           Principal:
             Service: 'delivery.logs.amazonaws.com'
           Action: 's3:GetBucketAcl'
           Resource: !GetAtt 'Bucket.Arn'
+          Condition:
+            Fn::If:
+            - EnforceMinimumTlsVersion
+            - NumericLessThan:
+                's3:TlsVersion': !Ref MinimumTlsVersion
+            - !Ref 'AWS::NoValue'
   CloudFrontOriginAccessIdentity:
     Condition: HasCloudFrontReadAccess
     Type: 'AWS::CloudFront::CloudFrontOriginAccessIdentity'
